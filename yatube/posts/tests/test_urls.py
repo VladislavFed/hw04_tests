@@ -50,9 +50,6 @@ class PostURLTests(TestCase):
 
     def test_posts_post_id_edit_url_exists_at_author(self):
         """Страница /posts/post_id/edit/ доступна только для автора."""
-        self.user = User.objects.get(username=self.user)
-        self.authorized_client = Client()
-        self.authorized_client.force_login(PostURLTests.user)
         response = self.authorized_client.get(f"/posts/{self.post.id}/edit/")
         self.assertEqual(response.status_code, HTTPStatus.OK)
 

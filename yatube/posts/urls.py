@@ -18,3 +18,5 @@ urlpatterns = [
     # Редоктирование записи
     path("posts/<int:post_id>/edit/", views.post_edit, name="post_edit"),
 ]
+
+handler404 = 'core.views.page_not_found'
