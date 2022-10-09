@@ -3,16 +3,14 @@ from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import PostForm
-# Импортируем модель, чтобы обратиться к ней
 from .models import Group, Post, User
+
+MAX_NUM_OF_POSTS = 10  # Максимальное количество постов на странице
 
 
 def get_page_context(post_list, request):
-    # Показывать по 10 записей на странице.
-    paginator = Paginator(post_list, 10)
-    # Из URL извлекаем номер запрошенной страницы - это значение параметра page
+    paginator = Paginator(post_list, MAX_NUM_OF_POSTS)
     page_number = request.GET.get('page')
-    # Получаем набор записей для страницы с запрошенным номером
     page_obj = paginator.get_page(page_number)
     return {
         'paginator': paginator,
@@ -29,13 +27,7 @@ def index(request):
 
 def group_posts(request, slug):
     """Выводит шаблон с группами постов"""
-    # Функция get_object_or_404 получает по заданным критериям объект
-    # из базы данных или возвращает сообщение об ошибке, если объект не найден.
-    # В нашем случае в переменную group будут переданы объекты модели Group,
-    # поле slug у которых соответствует значению slug в запросе
     group = get_object_or_404(Group, slug=slug)
-    # Благодаря ранее описанным related_name в models.py
-    # напрямую берём посты из группы
     post_list = group.posts.all()
     context = {
         'group': group,
@@ -47,7 +39,6 @@ def group_posts(request, slug):
 
 def profile(request, username):
     """Выводит шаблон профайла пользователя"""
-    # Здесь код запроса к модели и создание словаря контекста
     template_name = 'posts/profile.html'
     user = User.objects.get(username=username)
     posts = user.posts.select_related("group")
@@ -61,7 +52,6 @@ def profile(request, username):
 
 
 def post_detail(request, post_id):
-    # Здесь код запроса к модели и создание словаря контекста
     template_name = 'posts/post_detail.html'
     post = get_object_or_404(Post, id=post_id)
     context = {

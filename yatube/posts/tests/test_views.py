@@ -3,13 +3,16 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from ..models import Group, Post, User
+from ..views import MAX_NUM_OF_POSTS
+
+NUMBER_OF_POSTS = 13  # Количество переданных постов
+POSTS_ON_THE_SEC_PAGE = 3  # Количество ожидаемых постов на второй странице
 
 
 class PostURLTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Создадим запись в БД для проверки доступности адреса post/test-slug/
         cls.user = User.objects.create(username="NoName")
         cls.group = Group.objects.create(
             title="Тестовая группа",
@@ -31,10 +34,8 @@ class PostURLTests(TestCase):
         # Авторизуем пользователя
         self.authorized_client.force_login(PostURLTests.user)
 
-    # Проверяем используемые шаблоны
     def test_pages_uses_correct_template(self):
         """URL-адрес использует соответствующий шаблон."""
-        # Собираем в словарь пары "имя_html_шаблона: reverse(name)"
         templates_page_names = {
             reverse('posts:index'): 'posts/index.html',
             (reverse('posts:group_list', kwargs={'slug': 'test-slug'})):
@@ -47,9 +48,6 @@ class PostURLTests(TestCase):
             (reverse('posts:post_edit', kwargs={'post_id': self.post.id})):
             'posts/create_post.html',
         }
-
-        # Проверяем, что при обращении к name
-        # вызывается соответствующий HTML-шаблон
         for reverse_name, template in templates_page_names.items():
             with self.subTest(template=template):
                 response = self.authorized_client.get(reverse_name)
@@ -69,15 +67,11 @@ class PostURLTests(TestCase):
             with self.subTest(expected=expected):
                 self.assertEqual(value, expected)
 
-    # Проверяем, что словарь context страницы /task
-    # в первом элементе списка object_list содержит ожидаемые значения
     def test_group_list_page_show_correct_context(self):
         """Шаблон group_list сформирован с правильным контекстом."""
         response = self.authorized_client.get(
             reverse('posts:group_list', kwargs={"slug": self.group.slug})
         )
-        # Взяли первый элемент из списка и проверили, что его содержание
-        # совпадает с ожидаемым
         first_object = response.context['page_obj'][0]
         task_author_0 = first_object.author
         task_text_0 = first_object.text
@@ -166,3 +160,56 @@ class PostURLTests(TestCase):
                 response = self.authorized_client.get(value)
                 form_field = response.context["page_obj"]
                 self.assertNotIn(expected, form_field)
+
+
+class PaginatorViewsTest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.authorized_author = Client()
+        cls.user = User.objects.create(username="NoName")
+        cls.group = Group.objects.create(
+            title="Тестовая группа",
+            slug="test-slug",
+            description="Тестовое описание",
+        )
+
+    def setUp(self):
+        for post_temp in range(NUMBER_OF_POSTS):
+            Post.objects.create(
+                text=f'text{post_temp}', author=self.user, group=self.group
+            )
+
+    def test_first_page_contains_ten_records(self):
+        """Проверяет что на первой странице отображается десять постов"""
+        templates_pages_names = {
+            'posts/index.html': reverse('posts:index'),
+            'posts/group_list.html':
+                reverse('posts:group_list', kwargs={'slug': self.group.slug}),
+            'posts/profile.html':
+                reverse('posts:profile', kwargs={'username': self.user}),
+        }
+        for _, reverse_name in templates_pages_names.items():
+            with self.subTest(reverse_name=reverse_name):
+                response = self.client.get(reverse_name)
+                self.assertEqual(
+                    len(response.context['page_obj']), MAX_NUM_OF_POSTS
+                )
+
+    def test_second_page_contains_three_records(self):
+        """Проверяет что на первой странице отображается три поста"""
+        templates_pages_names = {
+            'posts/index.html': reverse('posts:index') + '?page=2',
+            'posts/group_list.html':
+                reverse('posts:group_list',
+                        kwargs={'slug': self.group.slug}) + '?page=2',
+            'posts/profile.html':
+                reverse('posts:profile',
+                        kwargs={'username': self.user}) + '?page=2',
+        }
+        for _, reverse_name in templates_pages_names.items():
+            with self.subTest(reverse_name=reverse_name):
+                response = self.client.get(reverse_name)
+                self.assertEqual(len(
+                    response.context['page_obj']), POSTS_ON_THE_SEC_PAGE
+                )

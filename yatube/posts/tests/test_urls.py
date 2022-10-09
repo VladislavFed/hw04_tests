@@ -64,16 +64,16 @@ class PostURLTests(TestCase):
             with self.subTest(template=template):
                 response = self.authorized_client.get(url)
                 self.assertTemplateUsed(response, template)
+       
+    def test_error_page(self):
+        response = self.client.get('/somthing-page/')
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
 
 class StaticURLTests(TestCase):
     def setUp(self):
-        # Устанавливаем данные для тестирования
-        # Создаём экземпляр клиента. Он неавторизован.
         self.guest_client = Client()
 
     def test_homepage(self):
-        # Отправляем запрос через client,
-        # созданный в setUp()
         response = self.guest_client.get('/')
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
