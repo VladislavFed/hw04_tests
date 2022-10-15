@@ -1,21 +1,30 @@
 {% extends "base.html" %}
-{% block title %}Технологии{% endblock %}
+{% block title %}<title>Технологии</title>{% endblock %}
 {% block content %}
 {% comment %} Колонки с отступом сверху и снизу {% endcomment %}
+
 <div class="row">
-  <h1>Вот что я умею</h1>
+  <h1>Страница технологий</h1>
   {% comment %}
     Боковой блок со списком технологий 
     Займет всю ширину блока на мобильном
     и 25% при размерах экрана ≥768px
   {% endcomment %}
+  <h5>использованных, при создании сайта</h5>
+
   <aside class="col-12 col-md-3">
     <ul class="list-group list-group-flush">
       <li class="list-group-item">
-        Python
+        Python 3.7.9
       </li>
       <li class="list-group-item">
-        Django
+        Django 2.2.9
+      </li>
+      <li class="list-group-item">
+        HTML
+      </li>
+      <li class="list-group-item">
+        GitHub
       </li>
     </ul>
   </aside>
@@ -24,8 +33,5 @@
     Займет всю ширину блока на мобильном
     и 75% при размерах экрана ≥768px
   {% endcomment %}
-  <article class="col-12 col-md-9">
-    <p>Текст страницы "Технологии"</p>
-  </article>
 </div>
 {% endblock %} 

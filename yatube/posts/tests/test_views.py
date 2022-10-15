@@ -1,8 +1,9 @@
 from django import forms
+from django.core.cache import cache
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from ..models import Group, Post, User
+from ..models import Follow, Group, Post, User
 from ..views import MAX_NUM_OF_POSTS
 
 NUMBER_OF_POSTS = 13  # Количество переданных постов
@@ -40,7 +41,8 @@ class PostURLTests(TestCase):
             reverse('posts:index'): 'posts/index.html',
             (reverse('posts:group_list', kwargs={'slug': 'test-slug'})):
             'posts/group_list.html',
-            (reverse('posts:profile', kwargs={'username': 'NoName'})):
+            (reverse(
+                'posts:profile', kwargs={'username': self.user.username})):
             'posts/profile.html',
             (reverse('posts:post_detail', kwargs={'post_id': self.post.id})):
             'posts/post_detail.html',
@@ -62,6 +64,7 @@ class PostURLTests(TestCase):
             self.post.text: first_object.text,
             self.group.slug: first_object.group.slug,
             self.post.id: first_object.id,
+            self.post.image: first_object.image
         }
         for value, expected in context_objects.items():
             with self.subTest(expected=expected):
@@ -76,9 +79,11 @@ class PostURLTests(TestCase):
         task_author_0 = first_object.author
         task_text_0 = first_object.text
         task_group_0 = first_object.group
+        task_post_0 = first_object.image
         self.assertEqual(task_author_0, self.user)
         self.assertEqual(task_text_0, 'Тестовый пост')
         self.assertEqual(task_group_0, self.group)
+        self.assertEqual(task_post_0, self.post.image)
 
     def test_post_profile_page_show_correct_context(self):
         """Шаблон post_profile сформирован с правильным контекстом."""
@@ -91,6 +96,7 @@ class PostURLTests(TestCase):
             self.post.text: first_object.text,
             self.group.slug: first_object.group.slug,
             self.post.id: first_object.id,
+            self.post.image: first_object.image,
         }
         for value, expected in context_objects.items():
             with self.subTest(expected=expected):
@@ -104,6 +110,7 @@ class PostURLTests(TestCase):
             response.context.get('post').author: self.user,
             response.context.get('post').group: self.group,
             response.context.get('post').text: 'Тестовый пост',
+            response.context.get('post').image: self.post.image,
         }
         for value, expected in test_post.items():
             with self.subTest(value=value):
@@ -161,6 +168,23 @@ class PostURLTests(TestCase):
                 form_field = response.context["page_obj"]
                 self.assertNotIn(expected, form_field)
 
+    def test_cache_index_page(self):
+        """Проверка хранения и очищения кэша для index."""
+        post = Post.objects.create(
+            text='test_new_post',
+            author=self.user,
+        )
+        content_old = self.authorized_client.get(
+            reverse('posts:index')).content
+        post.delete()
+        content_del = self.authorized_client.get(
+            reverse('posts:index')).content
+        self.assertEqual(content_old, content_del)
+        cache.clear()
+        content_new = self.authorized_client.get(
+            reverse('posts:index')).content
+        self.assertNotEqual(content_old, content_new)
+
 
 class PaginatorViewsTest(TestCase):
     @classmethod
@@ -173,12 +197,12 @@ class PaginatorViewsTest(TestCase):
             slug="test-slug",
             description="Тестовое описание",
         )
-
-    def setUp(self):
+        posts_list: list = []
         for post_temp in range(NUMBER_OF_POSTS):
-            Post.objects.create(
-                text=f'text{post_temp}', author=self.user, group=self.group
-            )
+            posts_list.append(Post(text=f'text{post_temp}',
+                                   author=cls.user,
+                                   group=cls.group))
+        Post.objects.bulk_create(posts_list)
 
     def test_first_page_contains_ten_records(self):
         """Проверяет что на первой странице отображается десять постов"""
@@ -213,3 +237,67 @@ class PaginatorViewsTest(TestCase):
                 self.assertEqual(len(
                     response.context['page_obj']), POSTS_ON_THE_SEC_PAGE
                 )
+
+
+class FollowViewsTest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.author_post = User.objects.create(
+            username='Автор',
+        )
+        cls.follower_post = User.objects.create(
+            username='Пользователь',
+        )
+        cls.post = Post.objects.create(
+            text='Тестовый пост',
+            author=cls.author_post,
+        )
+
+    def setUp(self):
+        cache.clear()
+        self.author_client = Client()
+        self.author_client.force_login(self.follower_post)
+        self.follower_client = Client()
+        self.follower_client.force_login(self.author_post)
+
+    def test_follow_on_user(self):
+        follow_count = Follow.objects.count()
+        self.follower_client.post(
+            reverse(
+                'posts:profile_follow',
+                kwargs={'username': self.follower_post}))
+        follow = Follow.objects.all().latest('id')
+        self.assertEqual(Follow.objects.count(), follow_count + 1)
+        self.assertEqual(follow.author_id, self.follower_post.id)
+        self.assertEqual(follow.user_id, self.author_post.id)
+
+    def test_unfollow_on_user(self):
+        Follow.objects.create(
+            user=self.author_post,
+            author=self.follower_post)
+        follow_count = Follow.objects.count()
+        self.follower_client.post(
+            reverse(
+                'posts:profile_unfollow',
+                kwargs={'username': self.follower_post}))
+        self.assertEqual(Follow.objects.count(), follow_count - 1)
+
+    def test_follow_on_authors(self):
+        post = Post.objects.create(
+            author=self.author_post,
+            text='Тестовый пост')
+        Follow.objects.create(
+            user=self.follower_post,
+            author=self.author_post)
+        response = self.author_client.get(
+            reverse('posts:follow_index'))
+        self.assertIn(post, response.context['page_obj'].object_list)
+
+    def test_notfollow_on_authors(self):
+        post = Post.objects.create(
+            author=self.author_post,
+            text='Тестовый пост')
+        response = self.author_client.get(
+            reverse('posts:follow_index'))
+        self.assertNotIn(post, response.context['page_obj'].object_list)

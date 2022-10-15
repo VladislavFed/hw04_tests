@@ -68,6 +68,7 @@ class PostURLTests(TestCase):
     def test_error_page(self):
         response = self.client.get('/somthing-page/')
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+        self.assertTemplateUsed(response, 'core/404.html')
 
 
 class StaticURLTests(TestCase):

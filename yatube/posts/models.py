@@ -50,3 +50,48 @@ class Post(models.Model):
 
     def __str__(self):
         return self.text[:15]
+
+
+class Comment(models.Model):
+    post = models.ForeignKey(
+        Post,
+        related_name='comment',
+        verbose_name='Пост',
+        on_delete=models.CASCADE,
+    )
+    author = models.ForeignKey(
+        User,
+        related_name='comment',
+        verbose_name='Автор',
+        on_delete=models.CASCADE,
+    )
+    text = models.TextField(
+        'Комментарий',
+        help_text='Введите комеентарий',
+    )
+    created = models.DateTimeField(
+        auto_now_add=True
+    )
+
+
+class Follow(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='follower',
+        verbose_name='Пользователь',
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='following',
+        verbose_name='Автор'
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['author', 'user'],
+                name='unique_follow'
+            )
+        ]
